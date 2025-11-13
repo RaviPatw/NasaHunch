@@ -4,9 +4,13 @@ import time
 import os
 from datetime import datetime
 
-LOG_FILE = "/var/log/auto_maintain.log"
+# Use local test paths
+LOG_FILE = "./auto_maintain_test.log"
+BACKUP_FILE = "./etc_backup_test.tar.gz"
 REBOOT_ON_KERNEL_UPDATE = True
-BACKUP_FILE = "/var/backups/etc_backup.tar.gz"
+
+# Flag: True = simulate (don’t actually run system commands)
+SIMULATE = True
 
 
 def log(message):
@@ -18,17 +22,15 @@ def log(message):
 
 
 def run(cmd):
-    """
-    Runs a command and returns output.
-    If error occurs, returns output anyway.
-    """
+    """Runs or simulates a command safely."""
     log(f"Running: {' '.join(cmd)}")
+
+    if SIMULATE:
+        log(f"[SIMULATED] Command would run: {' '.join(cmd)}")
+        return 0, "[simulated output]"
+
     try:
-        result = subprocess.run(
-            cmd,
-            text=True,
-            capture_output=True
-        )
+        result = subprocess.run(cmd, text=True, capture_output=True)
         output = (result.stdout or "") + (result.stderr or "")
         log(output.strip())
         return result.returncode, output
@@ -38,37 +40,26 @@ def run(cmd):
 
 
 def backup_etc():
-    """
-    Creates a quick /etc backup in case an upgrade breaks config files.
-    """
+    """Simulate /etc backup."""
     log("Creating /etc backup...")
-    try:
-        cmd = ["tar", "-czf", BACKUP_FILE, "/etc"]
-        code, out = run(cmd)
-        if code == 0:
-            log(f"/etc backup saved to {BACKUP_FILE}")
-        else:
-            log("WARNING: /etc backup failed, continuing anyway.")
-    except Exception as e:
-        log(f"Backup failed: {e}")
+    cmd = ["tar", "-czf", BACKUP_FILE, "/etc"]
+    code, _ = run(cmd)
+    if code == 0:
+        log(f"/etc backup saved to {BACKUP_FILE}")
+    else:
+        log("WARNING: /etc backup failed, continuing anyway.")
 
 
 def update_package_lists():
     log("Updating package lists...")
-    code, _ = run(["apt-get", "update"])
-    if code != 0:
-        log("ERROR: apt-get update failed.")
+    run(["apt-get", "update"])
 
 
 def upgrade_packages():
     log("Upgrading packages...")
     code, output = run(["apt-get", "-y", "full-upgrade"])
 
-    kernel_updated = False
-    for line in output.splitlines():
-        if "linux-image" in line or "linux-headers" in line:
-            kernel_updated = True
-
+    kernel_updated = "linux-image" in output or "linux-headers" in output
     return kernel_updated
 
 
@@ -92,7 +83,7 @@ def ensure_log_file():
 
 def main():
     ensure_log_file()
-    log("===== AUTO MAINTENANCE STARTED =====")
+    log("===== AUTO MAINTENANCE STARTED (SAFE TEST MODE) =====")
 
     backup_etc()
     update_package_lists()
@@ -100,8 +91,8 @@ def main():
     cleanup()
 
     if kernel_updated and REBOOT_ON_KERNEL_UPDATE:
-        log("Kernel update detected; reboot required.")
-        time.sleep(5)  
+        log("Kernel update detected; would reboot now.")
+        time.sleep(2)
         reboot_system()
     else:
         log("No reboot required.")
