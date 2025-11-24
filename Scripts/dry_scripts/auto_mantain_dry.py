@@ -4,12 +4,10 @@ import time
 import os
 from datetime import datetime
 
-# Use local test paths
 LOG_FILE = "./auto_maintain_test.log"
 BACKUP_FILE = "./etc_backup_test.tar.gz"
 REBOOT_ON_KERNEL_UPDATE = True
 
-# Flag: True = simulate (don’t actually run system commands)
 SIMULATE = True
 
 

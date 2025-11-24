@@ -8,7 +8,7 @@ from datetime import datetime
 LOG_DIR = "/var/log"
 MAX_DAYS = 14
 MAX_SIZE_MB = 50
-DRY_RUN = True  # Set True for dry-run
+DRY_RUN = True  
 
 def compress_file(file_path):
     if DRY_RUN:

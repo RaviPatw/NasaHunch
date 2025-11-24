@@ -2,7 +2,7 @@
 import subprocess
 import os
 import time
-from datetime import datetime
+from datetime import datetime, UTC
 
 SOURCE_DIRS = ["/home/pi/projects", "/etc", "/var/www"]
 BACKUP_DIR = "/mnt/usb/backups"
@@ -12,7 +12,7 @@ def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
 def create_backup():
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(BACKUP_DIR, f"backup_{timestamp}.tar.gz")
     cmd = ["tar", "-czf", backup_file] + SOURCE_DIRS
     subprocess.run(cmd)
