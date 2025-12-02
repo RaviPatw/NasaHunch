@@ -15,7 +15,7 @@ def run_or_simulate(cmd, simulate_text):
 
 
 def main():
-    print("🔒 Running Linux Security Audit (DRY RUN)...\n")
+    print(" Running Linux Security Audit (DRY RUN)...\n")
 
     # --- SSH CONFIG ---
     print("➡ SSH configuration:")

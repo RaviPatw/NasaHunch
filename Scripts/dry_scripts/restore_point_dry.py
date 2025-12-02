@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Use local directory instead of /mnt/usb/snapshots
 SNAPSHOT_DIR = "./snapshots_test"
-TEST_SOURCE_DIR = "./fake_root"   # Fake filesystem to simulate "/"
+TEST_SOURCE_DIR = "./fake_root"  
 
 EXCLUDES = ["proc", "sys", "tmp", "mnt", "dev", "run"]
 
