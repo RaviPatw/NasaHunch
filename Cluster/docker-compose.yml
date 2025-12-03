@@ -1,68 +1,40 @@
-version: "3.8"
 
 services:
-  # -----------------------
-  # PostgreSQL Database
-  # -----------------------
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: cluster
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: example
-    ports:
-      - "5432:5432"
-
-  # -----------------------
-  # Django Backend
-  # -----------------------
   backend:
-    build: ./backend       # Dockerfile inside backend folder
+    build: ./backend
     ports:
       - "8000:8000"
-    depends_on:
-      - db
+    volumes:
+      - ./backend:/app      
     environment:
-      DATABASE_NAME: cluster
-      DATABASE_USER: admin
-      DATABASE_PASSWORD: example
-      DATABASE_HOST: db
-
-  # -----------------------
-  # Prometheus Monitoring
-  # -----------------------
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "*"
+    depends_on:
+      - sensor_exporter
   prometheus:
     image: prom/prometheus
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
     depends_on:
       - node_exporter
       - sensor_exporter
-
-  # -----------------------
-  # Grafana Dashboard
-  # -----------------------
   grafana:
     image: grafana/grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
     ports:
       - "3000:3000"
     depends_on:
       - prometheus
-
-  # -----------------------
-  # Node Exporter (Simulated Node)
-  # -----------------------
   node_exporter:
     image: prom/node-exporter
     ports:
       - "9100:9100"
-
-  # -----------------------
-  # Sensor Exporter (Python app)
-  # -----------------------
   sensor_exporter:
     build: ./simulated_nodes
     ports:
       - "9200:9200"
+volumes:
+  grafana_data:
