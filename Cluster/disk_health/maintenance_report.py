@@ -53,6 +53,7 @@ def main():
     disk_usage.set(data["disk_usage"])
     uptime_metric.set(data["uptime"])
     push_to_gateway(PUSHGATEWAY_URL, job='raspi_maintenance', registry=registry)
-
-if __name__ == "__main__":
+INTERVAL=60
+while True:
     main()
+    time.sleep(INTERVAL)

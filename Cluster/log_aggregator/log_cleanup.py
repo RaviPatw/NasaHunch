@@ -33,6 +33,8 @@ def cleanup_logs():
                 pass
 
 if __name__ == "__main__":
-    print(f"[{datetime.now()}] Starting log cleanup...")
-    cleanup_logs()
-    print("Cleanup complete.")
+    while True:
+        print(f"[{datetime.now()}] Starting log cleanup...")
+        cleanup_logs()
+        print("Cleanup complete.")
+        time.sleep(86400)

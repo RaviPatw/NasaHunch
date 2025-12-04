@@ -1,0 +1,134 @@
+version: "3.8"
+
+networks:
+  cluster_net:
+    driver: overlay
+
+volumes:
+  grafana_data:
+  backup_data:
+  logs_data:
+
+services:
+  # Backend Django API
+  backend:
+    image: cluster_backend:latest
+    build: ./backend
+    networks:
+      - cluster_net
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "*"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - sensor_exporter
+
+  # Sensor Exporter
+  sensor_exporter:
+    image: cluster_sensor_exporter:latest
+    build: ./simulated_nodes
+    networks:
+      - cluster_net
+    ports:
+      - "9200:9200"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    networks:
+      - cluster_net
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - sensor_exporter
+      - backend
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    networks:
+      - cluster_net
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - prometheus
+
+  # Backup Service
+  backup_service:
+    image: cluster_backup_service:latest
+    build: ./scripts/backup_service
+    networks:
+      - cluster_net
+    volumes:
+      - backup_data:/mnt/backup
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Disk Health Monitoring
+  disk_health:
+    image: cluster_disk_health:latest
+    build: ./scripts/disk_health
+    networks:
+      - cluster_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Log Aggregator
+  log_aggregator:
+    image: cluster_log_aggregator:latest
+    build: ./scripts/log_aggregator
+    networks:
+      - cluster_net
+    volumes:
+      - logs_data:/var/log
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Cluster Manager
+  cluster_manager:
+    image: cluster_manager:latest
+    build: ./scripts/cluster_manager
+    networks:
+      - cluster_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Test / Stress container
+  test_stress:
+    image: cluster_test_stress:latest
+    build: ./scripts/test_stress
+    networks:
+      - cluster_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
