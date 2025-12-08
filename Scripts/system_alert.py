@@ -10,7 +10,7 @@ THRESHOLDS = {
     "memory": 90,
     "disk": 90
 }
-CHECK_INTERVAL = 300  # 5 minutes
+CHECK_INTERVAL = 300 
 ALERT_EMAIL = "ravipatwardhan123@gmail.com"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587

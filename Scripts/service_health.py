@@ -6,7 +6,7 @@ from datetime import datetime
 
 SERVICES = ["nginx", "ssh", "docker", "prometheus-node-exporter"]
 LOG_FILE = "/var/log/service_health.json"
-INTERVAL = 300  # every 5 minutes
+INTERVAL = 300 
 
 def check_service(service):
     cmd = ["systemctl", "is-active", service]

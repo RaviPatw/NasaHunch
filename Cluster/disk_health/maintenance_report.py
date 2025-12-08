@@ -54,6 +54,7 @@ def main():
     uptime_metric.set(data["uptime"])
     push_to_gateway(PUSHGATEWAY_URL, job='raspi_maintenance', registry=registry)
 INTERVAL=60
-while True:
-    main()
-    time.sleep(INTERVAL)
+if __name__ == "__main__":
+    while True:
+        main()
+        time.sleep(INTERVAL)
