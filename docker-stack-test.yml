@@ -1,0 +1,140 @@
+version: "3.8"
+
+networks:
+  cluster_net:
+    driver: bridge  # Changed from overlay for Pi single-node
+
+volumes:
+  grafana_data:
+  backup_data:
+  logs_data:
+
+services:
+  # Backend Django API (custom)
+  backend:
+    build:
+      context: ./backend
+      platform: linux/arm64  # Ensure ARM64 build on Pi
+    image: cluster_backend:pi
+    networks:
+      - cluster_net
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "*"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - sensor_exporter
+
+  # Sensor Exporter (already working)
+  sensor_exporter:
+    image: cluster_sensor_exporter:latest
+    build: ./simulated_nodes
+    networks:
+      - cluster_net
+    ports:
+      - "9200:9200"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Prometheus (works on Pi, keep as-is)
+  prometheus:
+    image: prom/prometheus:latest
+    networks:
+      - cluster_net
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - sensor_exporter
+      - backend
+
+  # Grafana (official ARM64 image)
+  grafana:
+    image: arm64v8/grafana:9.7.2  # ARM64-compatible Grafana
+    networks:
+      - cluster_net
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - prometheus
+
+  # Backup Service (already works)
+  backup_service:
+    image: cluster_backup_service:latest
+    build: ./scripts/backup_service
+    networks:
+      - cluster_net
+    volumes:
+      - backup_data:/mnt/backup
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Disk Health Monitoring (custom)
+  disk_health:
+    build:
+      context: ./scripts/disk_health
+      platform: linux/arm64
+    image: cluster_disk_health:pi
+    networks:
+      - cluster_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Log Aggregator (already works)
+  log_aggregator:
+    image: cluster_log_aggregator:latest
+    build: ./scripts/log_aggregator
+    networks:
+      - cluster_net
+    volumes:
+      - logs_data:/var/log
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Cluster Manager (custom)
+  cluster_manager:
+    build:
+      context: ./scripts/cluster_manager
+      platform: linux/arm64
+    image: cluster_manager:pi
+    networks:
+      - cluster_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  # Test / Stress container (keep as-is for now)
+  test_stress:
+    image: cluster_test_stress:latest
+    build: ./scripts/test_stress
+    networks:
+      - cluster_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
