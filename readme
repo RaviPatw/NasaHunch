@@ -22,3 +22,14 @@ docker stack rm cluster
 
 Unit Test
 pytest -v filename
+
+
+Ip address:
+Master1:198.0.0.2
+Master2:198.0.0.3
+Slave1:198.0.0.4
+Slave2:198.0.0.5
+Slave3:198.0.0.6
+Router:198.0.0.1
+
+Class C address --> more host able to be put in larger scale devolopment of the rasberry pi server farm

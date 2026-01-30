@@ -2,7 +2,7 @@ version: "3.8"
 
 networks:
   cluster_net:
-    driver: overlay
+    driver: bridge  # Use bridge for single-node Pi
 
 volumes:
   grafana_data:
@@ -12,8 +12,7 @@ volumes:
 services:
   # Backend Django API
   backend:
-    image: cluster_backend:latest
-    build: ./backend
+    image: cluster_backend:pi  # prebuilt ARM64 image
     networks:
       - cluster_net
     ports:
@@ -31,7 +30,6 @@ services:
   # Sensor Exporter
   sensor_exporter:
     image: cluster_sensor_exporter:latest
-    build: ./simulated_nodes
     networks:
       - cluster_net
     ports:
@@ -60,7 +58,7 @@ services:
 
   # Grafana
   grafana:
-    image: grafana/grafana:latest
+    image: arm64v8/grafana:9.7.2  # ARM64 Grafana
     networks:
       - cluster_net
     ports:
@@ -77,7 +75,6 @@ services:
   # Backup Service
   backup_service:
     image: cluster_backup_service:latest
-    build: ./scripts/backup_service
     networks:
       - cluster_net
     volumes:
@@ -89,8 +86,7 @@ services:
 
   # Disk Health Monitoring
   disk_health:
-    image: cluster_disk_health:latest
-    build: ./scripts/disk_health
+    image: cluster_disk_health:pi  # prebuilt ARM64 image
     networks:
       - cluster_net
     deploy:
@@ -101,7 +97,6 @@ services:
   # Log Aggregator
   log_aggregator:
     image: cluster_log_aggregator:latest
-    build: ./scripts/log_aggregator
     networks:
       - cluster_net
     volumes:
@@ -113,8 +108,7 @@ services:
 
   # Cluster Manager
   cluster_manager:
-    image: cluster_manager:latest
-    build: ./scripts/cluster_manager
+    image: cluster_manager:pi  # prebuilt ARM64 image
     networks:
       - cluster_net
     deploy:
@@ -125,7 +119,6 @@ services:
   # Test / Stress container
   test_stress:
     image: cluster_test_stress:latest
-    build: ./scripts/test_stress
     networks:
       - cluster_net
     deploy:
