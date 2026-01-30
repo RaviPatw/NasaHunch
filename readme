@@ -1,13 +1,15 @@
 Build images:
-docker build -t cluster_sensor_exporter ./simulated_nodes
-docker build -t cluster_backup_service ./backup_service
-docker build -t cluster_disk_health ./disk_health
-docker build -t cluster_cluster_manager ./cluster_manager
-docker build -t cluster_test_stress ./test_stress
-docker build -t cluster_backup_service ./backup_service
-docker build -t cluster_disk_health ./disk_health
-docker build -t cluster_cluster_manager ./cluster_manager
-docker build -t cluster_log_aggregator ./log_aggregator
+docker image rm cluster_* -f
+docker build --platform linux/arm64 -t cluster-backend ./backend
+docker build --platform linux/arm64 -t cluster-sensor_exporter ./simulated_nodes
+docker build --platform linux/arm64 -t cluster-sensor_node ./simulated_nodes/node
+docker build --platform linux/arm64 -t cluster-backup_service ./backup_service
+docker build --platform linux/arm64 -t cluster-disk_health ./disk_health
+docker build --platform linux/arm64 -t cluster-log_aggregator ./log_aggregator
+docker build --platform linux/arm64 -t cluster-cluster_manager ./cluster_manager
+docker build --platform linux/arm64 -t cluster-test_stress ./test_stress
+
+
 
 Run containers:
 docker stack deploy -c docker-stack.yml cluster
