@@ -11,10 +11,16 @@ volumes:
 
 services:
   # Backend Django API
-  pushgateway:
-  image: prom/pushgateway:latest
-  networks:
-    - cluster_cluster_net
+    pushgateway:
+    image: prom/pushgateway:latest
+    networks:
+      - cluster_net
+    ports:
+      - "9091:9091"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
   backend:
     image: cluster_backend:latest  # prebuilt ARM64 image
     networks:
@@ -112,7 +118,7 @@ services:
 
   # Cluster Manager
   cluster_manager:
-    image: cluster_manager:pi  # prebuilt ARM64 image
+    image: cluster_manager:latest  # prebuilt ARM64 image
     networks:
       - cluster_net
     deploy:
