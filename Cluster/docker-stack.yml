@@ -11,6 +11,10 @@ volumes:
 
 services:
   # Backend Django API
+  pushgateway:
+  image: prom/pushgateway:latest
+  networks:
+    - cluster_cluster_net
   backend:
     image: cluster_backend:latest  # prebuilt ARM64 image
     networks:

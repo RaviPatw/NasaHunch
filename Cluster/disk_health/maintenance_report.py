@@ -2,7 +2,7 @@
 import os, subprocess, psutil, time, json
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
-PUSHGATEWAY_URL = "http://master-node:9091"
+PUSHGATEWAY_URL = "http://pushgateway:9091"
 NODE_NAME = os.uname()[1]
 REPORT_FILE = f"/var/log/maintenance_{NODE_NAME}.json"
 
