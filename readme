@@ -2,11 +2,9 @@ Build images:
 docker build -t cluster_sensor_exporter ./simulated_nodes
 docker build -t cluster_backup_service ./backup_service
 docker build -t cluster_disk_health ./disk_health
-docker build -t cluster_cluster_manager ./cluster_manager
+docker build -t cluster_manager ./cluster_manager
 docker build -t cluster_test_stress ./test_stress
 docker build -t cluster_backup_service ./backup_service
-docker build -t cluster_disk_health ./disk_health
-docker build -t cluster_cluster_manager ./cluster_manager
 docker build -t cluster_log_aggregator ./log_aggregator
 
 Run containers:

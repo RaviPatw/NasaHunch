@@ -2,7 +2,7 @@ version: "3.8"
 
 networks:
   cluster_net:
-    driver: bridge  # Use bridge for single-node Pi
+    driver: overlay  # Use bridge for single-node Pi
 
 volumes:
   grafana_data:
@@ -12,7 +12,7 @@ volumes:
 services:
   # Backend Django API
   backend:
-    image: cluster_backend:pi  # prebuilt ARM64 image
+    image: cluster_backend:latest  # prebuilt ARM64 image
     networks:
       - cluster_net
     ports:
@@ -86,7 +86,7 @@ services:
 
   # Disk Health Monitoring
   disk_health:
-    image: cluster_disk_health:pi  # prebuilt ARM64 image
+    image: cluster_disk_health:latest  # prebuilt ARM64 image
     networks:
       - cluster_net
     deploy:
