@@ -6,6 +6,8 @@ docker build -t cluster_manager ./cluster_manager
 docker build -t cluster_test_stress ./test_stress
 docker build -t cluster_backup_service ./backup_service
 docker build -t cluster_log_aggregator ./log_aggregator
+docker pull grafana/grafana-enterprise:11.1.1
+
 
 Run containers:
 docker stack deploy -c docker-stack.yml cluster

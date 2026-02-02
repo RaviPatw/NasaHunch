@@ -5,7 +5,7 @@ networks:
     driver: overlay  # Use bridge for single-node Pi
 
 volumes:
-  grafana_data:
+  cluster_grafana_data:
   backup_data:
   logs_data:
 
@@ -68,13 +68,13 @@ services:
 
   # Grafana
   grafana:
-    image: arm64v8/grafana:9.7.2  # ARM64 Grafana
+    image: grafana/grafana-enterprise:11.1.1
     networks:
       - cluster_net
     ports:
       - "3000:3000"
     volumes:
-      - grafana_data:/var/lib/grafana
+      - cluster_grafana_data:/var/lib/grafana
     deploy:
       replicas: 1
       restart_policy:
