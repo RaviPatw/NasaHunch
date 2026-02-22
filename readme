@@ -13,6 +13,44 @@ Presentation Hardware Layout (recommended)
 1. `2 x Raspberry Pi 5 (8GB)` -> `role=ai`
 2. `3 x Raspberry Pi 5 (4GB)` -> `role=general`
 3. Use one 8GB Pi as the Swarm manager.
+4. All Pis connect to the same Ethernet switch.
+
+Static IP Plan (recommended for presentation)
+Use a single LAN subnet for the switch. Example:
+1. Network: `192.168.50.0/24`
+2. Subnet mask: `255.255.255.0`
+3. Gateway (if connected to router/internet): `192.168.50.1`
+4. DNS: `192.168.50.1` (or `8.8.8.8`)
+
+Assign these static IPs
+1. `pi-ai-1` (8GB, manager): `192.168.50.10`
+2. `pi-ai-2` (8GB, worker): `192.168.50.11`
+3. `pi-gen-1` (4GB, worker): `192.168.50.21`
+4. `pi-gen-2` (4GB, worker): `192.168.50.22`
+5. `pi-gen-3` (4GB, worker): `192.168.50.23`
+
+Set static IP on each Pi (Raspberry Pi OS, `dhcpcd`)
+1. Find interface name:
+   `ip -br a`
+2. Edit config:
+   `sudo nano /etc/dhcpcd.conf`
+3. Add per-Pi config (replace interface/IP as needed):
+   `interface eth0`
+   `static ip_address=192.168.50.10/24`
+   `static routers=192.168.50.1`
+   `static domain_name_servers=192.168.50.1 8.8.8.8`
+   If your switch is not connected to a router/internet, omit `static routers` and use local-only IPs.
+4. Restart networking or reboot:
+   `sudo reboot`
+5. Verify:
+   `ip -4 addr show eth0`
+   `ping -c 2 192.168.50.10`
+
+Static IP checklist before Swarm setup
+1. Each Pi can ping every other Pi by static IP.
+2. Manager Pi (`192.168.50.10`) is reachable from all workers.
+3. If using internet pulls, confirm DNS works:
+   `ping -c 2 google.com`
 
 Where code/images need to exist
 1. Clone the repo on the Swarm manager Pi (required).
@@ -66,7 +104,7 @@ On manager Pi (`pi-ai-1`)
 
 On each worker Pi (`pi-ai-2`, `pi-gen-1`, `pi-gen-2`, `pi-gen-3`)
 1. Run the join command printed by the manager:
-   `docker swarm join --token <token> <manager-ip>:2377`
+   `docker swarm join --token <token> 192.168.50.10:2377`
 
 Back on manager Pi
 4. Verify nodes:
@@ -135,7 +173,7 @@ Run on manager Pi:
 6. `docker service logs cluster_sensor_exporter --tail 20`
 7. `curl http://localhost:9200/metrics | head`
 8. `curl http://localhost:9090/-/healthy`
-9. Open `http://<manager-ip>:9090/targets` and confirm multiple `node_exporter` targets are up
+9. Open `http://192.168.50.10:9090/targets` and confirm multiple `node_exporter` targets are up
 
 Presentation Day "Quick Start" (copy/paste sequence)
 1. `cd ~/NasaHunch/Cluster`
@@ -158,13 +196,13 @@ Presentation Runbook (fast flow)
    `docker service ps cluster_node_exporter`
    `docker service logs cluster_sensor_exporter --tail 20`
    `docker service logs cluster_prometheus --tail 20`
-3. Show live metrics in browser (replace `<manager-ip>`):
-   `http://<manager-ip>:9200/metrics`
-   `http://<manager-ip>:9090/targets`
-   `http://<manager-ip>:9090/graph` (query `sensor_temperature_c`, `sensor_humidity_pct`)
-   `http://<manager-ip>:8000/register` (API route exists, expects POST)
-   `http://<manager-ip>:8000/report_metrics` (API route exists, expects POST)
-   `http://<manager-ip>:3000` (Grafana)
+3. Show live metrics in browser (manager Pi is `192.168.50.10`):
+   `http://192.168.50.10:9200/metrics`
+   `http://192.168.50.10:9090/targets`
+   `http://192.168.50.10:9090/graph` (query `sensor_temperature_c`, `sensor_humidity_pct`)
+   `http://192.168.50.10:8000/register` (API route exists, expects POST)
+   `http://192.168.50.10:8000/report_metrics` (API route exists, expects POST)
+   `http://192.168.50.10:3000` (Grafana)
 4. Show hosting functionality (safe first):
    `cd ~/NasaHunch`
    `python3 deployer/deployer.py --queue-dir queue --dry-run`
