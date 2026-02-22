@@ -1,0 +1,7 @@
+name: test-web
+image: nginx:stable-alpine
+type: web
+port: 80
+publish_port: 8080
+replicas: 2
+network: cluster_net

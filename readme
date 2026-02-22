@@ -1,35 +1,54 @@
-Build images:
-docker build -t cluster_sensor_exporter ./simulated_nodes
-docker build -t cluster_backup_service ./backup_service
-docker build -t cluster_disk_health ./disk_health
-docker build -t cluster_manager ./cluster_manager
-docker build -t cluster_test_stress ./test_stress
-docker build -t cluster_backup_service ./backup_service
-docker build -t cluster_log_aggregator ./log_aggregator
-docker pull grafana/grafana-enterprise:11.1.1
+NASA HUNCH Raspberry Pi Server Farm
 
+This project has two main parts:
+1. `Cluster/`: monitoring and maintenance stack (Prometheus, Grafana, backend, exporters).
+2. `deployer/`: generic app hosting deployer for queued app contracts.
 
-Run containers:
-docker stack deploy -c docker-stack.yml cluster
+The deployer is now designed to host:
+1. Standard web/backend container apps.
+2. AI apps (scheduled onto AI-labeled nodes).
+3. Apps built from a Git repo containing a Dockerfile.
 
-docker service logs cluster_test_stress
+Prerequisites (on manager node):
+1. Docker + Swarm initialized.
+2. Python 3 + `pip install pyyaml`.
+3. Node labels set for your Pi hardware layout.
 
+Recommended labels for your cluster (2 x 8GB Pi 5, 3 x 4GB Pi 5):
+1. Label the two 8GB nodes as AI-capable:
+   `docker node update --label-add role=ai <node-name>`
+2. Label the three 4GB nodes as general:
+   `docker node update --label-add role=general <node-name>`
 
+Deploy monitoring stack:
+1. Build images from inside `Cluster/`:
+   `docker build -t cluster_sensor_exporter ./simulated_nodes`
+   `docker build -t cluster_backup_service ./backup_service`
+   `docker build -t cluster_disk_health ./disk_health`
+   `docker build -t cluster_manager ./cluster_manager`
+   `docker build -t cluster_test_stress ./test_stress`
+   `docker build -t cluster_log_aggregator ./log_aggregator`
+2. Deploy stack:
+   `docker stack deploy -c docker-stack.yml cluster`
 
-TO stop containers:
-docker stack rm cluster
+Test generic hosting feature (safe dry run first):
+1. From repo root:
+   `python deployer/deployer.py --queue-dir queue --dry-run`
+2. If output looks correct, run real deploy:
+   `python deployer/deployer.py --queue-dir queue`
 
+Queue examples:
+1. `queue/sample_web.yaml` (web app image)
+2. `queue/sample_ai.yaml` (AI app image, role=ai placement)
+3. `queue/sample_git_app.yaml` (build image from Git repo)
 
-Unit Test
-pytest -v filename
+Verify deployments:
+1. `docker service ls`
+2. `docker service ps test-web`
+3. `docker service ps test-ai-ollama`
 
+Stop cluster stack:
+1. `docker stack rm cluster`
 
-Ip address:
-Master1:198.0.0.2
-Master2:198.0.0.3
-Slave1:198.0.0.4
-Slave2:198.0.0.5
-Slave3:198.0.0.6
-Router:198.0.0.1
-
-Class C address --> more host able to be put in larger scale devolopment of the rasberry pi server farm
+Run unit tests:
+1. `pytest -v deployer/test_deployer.py`

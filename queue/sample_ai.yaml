@@ -1,0 +1,11 @@
+name: test-ai-ollama
+image: ollama/ollama:latest
+type: ai
+port: 11434
+publish_port: 11434
+replicas: 1
+env:
+  OLLAMA_KEEP_ALIVE: "5m"
+cpu_limit: "3.0"
+memory_limit: 6g
+network: cluster_net

@@ -1,6 +1,0 @@
-name: test-web
-image: nginx
-type: web
-port: 80
-replicas: 2
-

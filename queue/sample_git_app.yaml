@@ -1,0 +1,9 @@
+name: test-git-app
+git_repo: https://github.com/docker/getting-started.git
+git_ref: master
+dockerfile: Dockerfile
+build_context: .
+type: general
+port: 80
+replicas: 1
+network: cluster_net
