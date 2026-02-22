@@ -9,47 +9,80 @@ The deployer supports:
 2. AI apps (scheduled onto AI-labeled nodes).
 3. Apps built from a Git repo containing a Dockerfile.
 
-Quick hardware plan used by this repo:
+Presentation Hardware Layout (recommended)
 1. `2 x Raspberry Pi 5 (8GB)` -> `role=ai`
 2. `3 x Raspberry Pi 5 (4GB)` -> `role=general`
 3. Use one 8GB Pi as the Swarm manager.
 
-Quick note on where the code should live:
+Where code/images need to exist
 1. Clone the repo on the Swarm manager Pi (required).
 2. The deployer and stack commands run from the manager Pi.
-3. Docker images must be available on nodes that run them (use a registry or pre-build on nodes if needed).
+3. Docker images must be available on nodes that run them.
+4. Public images can be pulled by workers automatically (internet required).
+5. Custom local images may need to be pre-built on nodes or pushed to a registry.
 
-Pre-Presentation Setup (all Pis)
-1. Install Raspberry Pi OS 64-bit.
-2. Connect all Pis to the same network.
-3. Install Docker:
+Requirements / Packages
+
+Install on all 5 Pis (required)
+1. Raspberry Pi OS 64-bit (Bookworm recommended).
+2. Network access on same LAN (all Pis).
+3. Docker Engine:
    `curl -fsSL https://get.docker.com | sh`
-4. Add your user to Docker group and reload shell:
+4. Add user to Docker group:
    `sudo usermod -aG docker $USER`
-   `newgrp docker`
-5. Install tools:
+5. System tools:
    `sudo apt update && sudo apt upgrade -y`
-   `sudo apt install -y python3 python3-pip git`
+   `sudo apt install -y git curl python3 python3-pip`
+6. Reload shell/group (or log out/in):
+   `newgrp docker`
 
-Swarm Setup (manager Pi)
+Install on manager Pi only (required for deployer)
+1. Python packages:
+   `pip3 install --user pyyaml pytest`
+
+Optional but useful on manager Pi
+1. `jq` for JSON output formatting:
+   `sudo apt install -y jq`
+
+Recommended hostnames (helps your demo)
+1. `pi-ai-1` (8GB, manager)
+2. `pi-ai-2` (8GB, worker)
+3. `pi-gen-1` (4GB, worker)
+4. `pi-gen-2` (4GB, worker)
+5. `pi-gen-3` (4GB, worker)
+
+Optional hostname command (run on each Pi, reboot after):
+1. `sudo hostnamectl set-hostname <new-name>`
+2. `sudo reboot`
+
+Day-Of Setup: Build the Swarm
+
+On manager Pi (`pi-ai-1`)
 1. Initialize Swarm:
    `docker swarm init`
 2. Get worker join command:
    `docker swarm join-token worker`
-3. Run the printed join command on each worker Pi.
+3. Copy the printed join command.
+
+On each worker Pi (`pi-ai-2`, `pi-gen-1`, `pi-gen-2`, `pi-gen-3`)
+1. Run the join command printed by the manager:
+   `docker swarm join --token <token> <manager-ip>:2377`
+
+Back on manager Pi
 4. Verify nodes:
    `docker node ls`
 
-Node Labels (for 2 x 8GB + 3 x 4GB)
-1. Label 8GB Pis as AI:
-   `docker node update --label-add role=ai <8gb-pi-1>`
-   `docker node update --label-add role=ai <8gb-pi-2>`
-2. Label 4GB Pis as general:
-   `docker node update --label-add role=general <4gb-pi-1>`
-   `docker node update --label-add role=general <4gb-pi-2>`
-   `docker node update --label-add role=general <4gb-pi-3>`
+Node Labels (required for hosting demo)
+1. Label AI nodes (8GB Pis):
+   `docker node update --label-add role=ai pi-ai-1`
+   `docker node update --label-add role=ai pi-ai-2`
+2. Label general nodes (4GB Pis):
+   `docker node update --label-add role=general pi-gen-1`
+   `docker node update --label-add role=general pi-gen-2`
+   `docker node update --label-add role=general pi-gen-3`
 3. Verify labels:
-   `docker node inspect <node-name> --format '{{json .Spec.Labels}}'`
+   `docker node inspect pi-ai-1 --format '{{json .Spec.Labels}}'`
+   `docker node inspect pi-gen-1 --format '{{json .Spec.Labels}}'`
 
 Manager Pi Repo Setup
 1. Clone repo:
@@ -58,7 +91,16 @@ Manager Pi Repo Setup
    `cd ~/NasaHunch`
    `pip3 install --user pyyaml pytest`
 
-Build Monitoring Stack Images (manager Pi)
+Pre-Pull Public Images (recommended on all Pis to avoid delays)
+Run on all Pis:
+1. `docker pull prom/node-exporter:latest`
+2. `docker pull prom/prometheus:latest`
+3. `docker pull prom/pushgateway:latest`
+4. `docker pull grafana/grafana-enterprise:11.1.1`
+5. `docker pull nginx:stable-alpine`
+6. `docker pull ollama/ollama:latest`
+
+Build Custom Monitoring Stack Images (manager Pi)
 Run from `~/NasaHunch/Cluster`:
 1. `docker build -t cluster_sensor_exporter ./simulated_nodes`
 2. `docker build -t cluster_backup_service ./backup_service`
@@ -68,6 +110,14 @@ Run from `~/NasaHunch/Cluster`:
 6. `docker build -t cluster_log_aggregator ./log_aggregator`
 7. `docker build -t cluster_backend ./backend`
 
+Important note for custom images
+1. If Swarm schedules a custom `cluster_*` image to a worker, that worker must be able to pull or already have that image.
+2. For the presentation, safest options are:
+   `A.` Keep services on manager if possible
+   `B.` Use a local registry
+   `C.` Build/load custom images on workers ahead of time
+3. The hosting demo examples `test-web` and `test-ai-ollama` use public images and are safer.
+
 Deploy Monitoring Stack
 1. From `~/NasaHunch/Cluster`:
    `docker stack deploy -c docker-stack.yml cluster`
@@ -76,27 +126,44 @@ Deploy Monitoring Stack
    `docker service ls`
 
 Quick Smoke Checks (do before audience arrives)
+Run on manager Pi:
 1. `docker node ls`
 2. `docker stack services cluster`
-3. `docker service ps cluster_sensor_exporter`
-4. `docker service logs cluster_sensor_exporter --tail 20`
-5. `curl http://localhost:9200/metrics | head`
-6. `curl http://localhost:9090/-/healthy`
+3. `docker service ps cluster_node_exporter`
+4. `docker service ps cluster_sensor_exporter`
+5. `docker service ps cluster_prometheus`
+6. `docker service logs cluster_sensor_exporter --tail 20`
+7. `curl http://localhost:9200/metrics | head`
+8. `curl http://localhost:9090/-/healthy`
+9. Open `http://<manager-ip>:9090/targets` and confirm multiple `node_exporter` targets are up
+
+Presentation Day "Quick Start" (copy/paste sequence)
+1. `cd ~/NasaHunch/Cluster`
+2. `docker stack deploy -c docker-stack.yml cluster`
+3. `docker stack services cluster`
+4. `docker service ps cluster_node_exporter`
+5. `docker service ps cluster_prometheus`
+6. `docker service ps cluster_sensor_exporter`
+7. `cd ~/NasaHunch`
+8. `python3 deployer/deployer.py --queue-dir queue --dry-run`
 
 Presentation Runbook (fast flow)
 1. Show cluster + node roles:
    `docker node ls`
-   `docker node inspect <8gb-pi-1> --format '{{json .Spec.Labels}}'`
-   `docker node inspect <4gb-pi-1> --format '{{json .Spec.Labels}}'`
+   `docker node inspect pi-ai-1 --format '{{json .Spec.Labels}}'`
+   `docker node inspect pi-gen-1 --format '{{json .Spec.Labels}}'`
 2. Show monitoring stack:
    `cd ~/NasaHunch/Cluster`
    `docker stack services cluster`
+   `docker service ps cluster_node_exporter`
    `docker service logs cluster_sensor_exporter --tail 20`
    `docker service logs cluster_prometheus --tail 20`
 3. Show live metrics in browser (replace `<manager-ip>`):
    `http://<manager-ip>:9200/metrics`
    `http://<manager-ip>:9090/targets`
    `http://<manager-ip>:9090/graph` (query `sensor_temperature_c`, `sensor_humidity_pct`)
+   `http://<manager-ip>:8000/register` (API route exists, expects POST)
+   `http://<manager-ip>:8000/report_metrics` (API route exists, expects POST)
    `http://<manager-ip>:3000` (Grafana)
 4. Show hosting functionality (safe first):
    `cd ~/NasaHunch`
@@ -114,10 +181,12 @@ What to point out during hosting demo
 2. `sample_ai.yaml` schedules to `role=ai`.
 3. `sample_git_app.yaml` can build from a Git repo (dry-run is safest live demo for this one).
 4. Check `NODE` column in `docker service ps` to prove placement.
+5. If `test-git-app` fails live, continue with `test-web` and `test-ai-ollama` and show `sample_git_app` in dry-run.
 
 Useful Logs / Debug Commands During Presentation
 1. `docker stack services cluster`
 2. `docker service ls`
+3. `docker service ps cluster_node_exporter`
 3. `docker service ps cluster_sensor_exporter`
 4. `docker service ps cluster_prometheus`
 5. `docker service logs cluster_sensor_exporter --tail 50`
@@ -125,6 +194,15 @@ Useful Logs / Debug Commands During Presentation
 7. `docker service logs cluster_backend --tail 50`
 8. `docker service logs test-web --tail 50`
 9. `docker service logs test-ai-ollama --tail 50`
+10. `docker service logs cluster_node_exporter --tail 20`
+
+Prometheus Queries (real per-Pi metrics)
+1. CPU usage by Pi:
+   `100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)`
+2. Memory usage percent by Pi:
+   `(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100`
+3. Disk usage percent by Pi:
+   `100 * (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}))`
 
 Queue examples
 1. `queue/sample_web.yaml` (web app image)
@@ -134,11 +212,20 @@ Queue examples
 Run unit tests (manager Pi, optional)
 1. `pytest -v deployer/test_deployer.py`
 
-Known Demo Caveats (current repo)
-1. `Cluster/prometheus/prometheus.yml` references `node_exporter:9100`, but `node_exporter` is not defined in `Cluster/docker-stack.yml` (Prometheus may show one target down).
-2. `Cluster/backend/backend/urls.py` currently exposes `/admin/` only; monitor API routes are not wired into main URLs.
-3. `sample_git_app.yaml` real deployment may fail on worker nodes if the built image exists only on the manager and no registry is used.
-4. Safer live demo: real deploy `sample_web` + `sample_ai`, use `sample_git_app` in `--dry-run`.
+Known Demo Caveats / Fallbacks
+1. `sample_git_app.yaml` real deployment may fail on worker nodes if the built image exists only on the manager and no registry is used.
+2. Safer live demo: real deploy `sample_web` + `sample_ai`, use `sample_git_app` in `--dry-run`.
+3. `ollama/ollama:latest` can take time to pull on Pi; pre-pull it on both 8GB Pis if possible.
+4. First-time image pulls/builds can be slow. Do them before the audience arrives.
+
+If a service fails live (fast recovery)
+1. Check task placement and error:
+   `docker service ps <service-name>`
+2. Check logs:
+   `docker service logs <service-name> --tail 50`
+3. Remove only the failing hosted service and continue:
+   `docker service rm <service-name>`
+4. Continue demo with monitoring + successful hosted services.
 
 Cleanup After Demo
 1. `docker stack rm cluster`
