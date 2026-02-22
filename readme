@@ -4,51 +4,142 @@ This project has two main parts:
 1. `Cluster/`: monitoring and maintenance stack (Prometheus, Grafana, backend, exporters).
 2. `deployer/`: generic app hosting deployer for queued app contracts.
 
-The deployer is now designed to host:
+The deployer supports:
 1. Standard web/backend container apps.
 2. AI apps (scheduled onto AI-labeled nodes).
 3. Apps built from a Git repo containing a Dockerfile.
 
-Prerequisites (on manager node):
-1. Docker + Swarm initialized.
-2. Python 3 + `pip install pyyaml`.
-3. Node labels set for your Pi hardware layout.
+Quick hardware plan used by this repo:
+1. `2 x Raspberry Pi 5 (8GB)` -> `role=ai`
+2. `3 x Raspberry Pi 5 (4GB)` -> `role=general`
+3. Use one 8GB Pi as the Swarm manager.
 
-Recommended labels for your cluster (2 x 8GB Pi 5, 3 x 4GB Pi 5):
-1. Label the two 8GB nodes as AI-capable:
-   `docker node update --label-add role=ai <node-name>`
-2. Label the three 4GB nodes as general:
-   `docker node update --label-add role=general <node-name>`
+Quick note on where the code should live:
+1. Clone the repo on the Swarm manager Pi (required).
+2. The deployer and stack commands run from the manager Pi.
+3. Docker images must be available on nodes that run them (use a registry or pre-build on nodes if needed).
 
-Deploy monitoring stack:
-1. Build images from inside `Cluster/`:
-   `docker build -t cluster_sensor_exporter ./simulated_nodes`
-   `docker build -t cluster_backup_service ./backup_service`
-   `docker build -t cluster_disk_health ./disk_health`
-   `docker build -t cluster_manager ./cluster_manager`
-   `docker build -t cluster_test_stress ./test_stress`
-   `docker build -t cluster_log_aggregator ./log_aggregator`
-2. Deploy stack:
+Pre-Presentation Setup (all Pis)
+1. Install Raspberry Pi OS 64-bit.
+2. Connect all Pis to the same network.
+3. Install Docker:
+   `curl -fsSL https://get.docker.com | sh`
+4. Add your user to Docker group and reload shell:
+   `sudo usermod -aG docker $USER`
+   `newgrp docker`
+5. Install tools:
+   `sudo apt update && sudo apt upgrade -y`
+   `sudo apt install -y python3 python3-pip git`
+
+Swarm Setup (manager Pi)
+1. Initialize Swarm:
+   `docker swarm init`
+2. Get worker join command:
+   `docker swarm join-token worker`
+3. Run the printed join command on each worker Pi.
+4. Verify nodes:
+   `docker node ls`
+
+Node Labels (for 2 x 8GB + 3 x 4GB)
+1. Label 8GB Pis as AI:
+   `docker node update --label-add role=ai <8gb-pi-1>`
+   `docker node update --label-add role=ai <8gb-pi-2>`
+2. Label 4GB Pis as general:
+   `docker node update --label-add role=general <4gb-pi-1>`
+   `docker node update --label-add role=general <4gb-pi-2>`
+   `docker node update --label-add role=general <4gb-pi-3>`
+3. Verify labels:
+   `docker node inspect <node-name> --format '{{json .Spec.Labels}}'`
+
+Manager Pi Repo Setup
+1. Clone repo:
+   `cd ~ && git clone <your-repo-url> NasaHunch`
+2. Install deployer/test dependencies (minimal):
+   `cd ~/NasaHunch`
+   `pip3 install --user pyyaml pytest`
+
+Build Monitoring Stack Images (manager Pi)
+Run from `~/NasaHunch/Cluster`:
+1. `docker build -t cluster_sensor_exporter ./simulated_nodes`
+2. `docker build -t cluster_backup_service ./backup_service`
+3. `docker build -t cluster_disk_health ./disk_health`
+4. `docker build -t cluster_manager ./cluster_manager`
+5. `docker build -t cluster_test_stress ./test_stress`
+6. `docker build -t cluster_log_aggregator ./log_aggregator`
+7. `docker build -t cluster_backend ./backend`
+
+Deploy Monitoring Stack
+1. From `~/NasaHunch/Cluster`:
    `docker stack deploy -c docker-stack.yml cluster`
+2. Verify:
+   `docker stack services cluster`
+   `docker service ls`
 
-Test generic hosting feature (safe dry run first):
-1. From repo root:
-   `python deployer/deployer.py --queue-dir queue --dry-run`
-2. If output looks correct, run real deploy:
-   `python deployer/deployer.py --queue-dir queue`
+Quick Smoke Checks (do before audience arrives)
+1. `docker node ls`
+2. `docker stack services cluster`
+3. `docker service ps cluster_sensor_exporter`
+4. `docker service logs cluster_sensor_exporter --tail 20`
+5. `curl http://localhost:9200/metrics | head`
+6. `curl http://localhost:9090/-/healthy`
 
-Queue examples:
+Presentation Runbook (fast flow)
+1. Show cluster + node roles:
+   `docker node ls`
+   `docker node inspect <8gb-pi-1> --format '{{json .Spec.Labels}}'`
+   `docker node inspect <4gb-pi-1> --format '{{json .Spec.Labels}}'`
+2. Show monitoring stack:
+   `cd ~/NasaHunch/Cluster`
+   `docker stack services cluster`
+   `docker service logs cluster_sensor_exporter --tail 20`
+   `docker service logs cluster_prometheus --tail 20`
+3. Show live metrics in browser (replace `<manager-ip>`):
+   `http://<manager-ip>:9200/metrics`
+   `http://<manager-ip>:9090/targets`
+   `http://<manager-ip>:9090/graph` (query `sensor_temperature_c`, `sensor_humidity_pct`)
+   `http://<manager-ip>:3000` (Grafana)
+4. Show hosting functionality (safe first):
+   `cd ~/NasaHunch`
+   `python3 deployer/deployer.py --queue-dir queue --dry-run`
+5. Show real hosting deployment:
+   `python3 deployer/deployer.py --queue-dir queue`
+6. Verify hosted services + scheduling:
+   `docker service ls`
+   `docker service ps test-web`
+   `docker service ps test-ai-ollama`
+   `docker service ps test-git-app`
+
+What to point out during hosting demo
+1. `sample_web.yaml` schedules to `role=general`.
+2. `sample_ai.yaml` schedules to `role=ai`.
+3. `sample_git_app.yaml` can build from a Git repo (dry-run is safest live demo for this one).
+4. Check `NODE` column in `docker service ps` to prove placement.
+
+Useful Logs / Debug Commands During Presentation
+1. `docker stack services cluster`
+2. `docker service ls`
+3. `docker service ps cluster_sensor_exporter`
+4. `docker service ps cluster_prometheus`
+5. `docker service logs cluster_sensor_exporter --tail 50`
+6. `docker service logs cluster_prometheus --tail 50`
+7. `docker service logs cluster_backend --tail 50`
+8. `docker service logs test-web --tail 50`
+9. `docker service logs test-ai-ollama --tail 50`
+
+Queue examples
 1. `queue/sample_web.yaml` (web app image)
-2. `queue/sample_ai.yaml` (AI app image, role=ai placement)
+2. `queue/sample_ai.yaml` (AI app image, `role=ai` placement)
 3. `queue/sample_git_app.yaml` (build image from Git repo)
 
-Verify deployments:
-1. `docker service ls`
-2. `docker service ps test-web`
-3. `docker service ps test-ai-ollama`
-
-Stop cluster stack:
-1. `docker stack rm cluster`
-
-Run unit tests:
+Run unit tests (manager Pi, optional)
 1. `pytest -v deployer/test_deployer.py`
+
+Known Demo Caveats (current repo)
+1. `Cluster/prometheus/prometheus.yml` references `node_exporter:9100`, but `node_exporter` is not defined in `Cluster/docker-stack.yml` (Prometheus may show one target down).
+2. `Cluster/backend/backend/urls.py` currently exposes `/admin/` only; monitor API routes are not wired into main URLs.
+3. `sample_git_app.yaml` real deployment may fail on worker nodes if the built image exists only on the manager and no registry is used.
+4. Safer live demo: real deploy `sample_web` + `sample_ai`, use `sample_git_app` in `--dry-run`.
+
+Cleanup After Demo
+1. `docker stack rm cluster`
+2. `docker service rm test-web test-ai-ollama test-git-app`
