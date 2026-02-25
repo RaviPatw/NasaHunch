@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     python3-dev \
     build-essential \
+    smartmontools \
     && rm -rf /var/lib/apt/lists/*
 
 COPY maintenance_report.py .

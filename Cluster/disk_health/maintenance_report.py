@@ -3,11 +3,12 @@ import os, subprocess, psutil, time, json
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
 PUSHGATEWAY_URL = "http://pushgateway:9091"
-NODE_NAME = os.uname()[1]
+NODE_NAME = getattr(os, "uname", lambda: ("", os.environ.get("HOSTNAME", "unknown")))()[1]
 REPORT_FILE = f"/var/log/maintenance_{NODE_NAME}.json"
 
 registry = CollectorRegistry()
 cpu_temp = Gauge('cpu_temperature_celsius', 'CPU temperature', registry=registry)
+cpu_temp_available = Gauge('cpu_temperature_available', '1 if CPU temp available', registry=registry)
 cpu_usage = Gauge('cpu_usage_percent', 'CPU usage', registry=registry)
 mem_usage = Gauge('memory_usage_percent', 'Memory usage', registry=registry)
 disk_usage = Gauge('disk_usage_percent', 'Disk usage', registry=registry)
@@ -17,15 +18,21 @@ def get_cpu_temp():
     try:
         out = subprocess.check_output(['vcgencmd', 'measure_temp']).decode()
         return float(out.replace("temp=","").replace("'C\n",""))
-    except:
-        return psutil.sensors_temperatures().get("cpu_thermal", [])[0].current
+    except Exception:
+        sensors = psutil.sensors_temperatures() or {}
+        for entries in sensors.values():
+            if entries:
+                current = getattr(entries[0], "current", None)
+                if current is not None:
+                    return float(current)
+        return None
 
 def get_uptime():
     return time.time() - psutil.boot_time()
 
 def get_smart_status():
     try:
-        out = subprocess.check_output(["sudo", "smartctl", "-H", "/dev/sda"]).decode()
+        out = subprocess.check_output(["smartctl", "-H", "/dev/sda"]).decode()
         if "PASSED" not in out:
             return "WARNING"
     except Exception:
@@ -47,12 +54,21 @@ def main():
     with open(REPORT_FILE, "a") as f:
         f.write(json.dumps(data) + "\n")
 
-    cpu_temp.set(data["cpu_temp"])
+    if data["cpu_temp"] is None:
+        cpu_temp_available.set(0)
+    else:
+        cpu_temp_available.set(1)
+        cpu_temp.set(data["cpu_temp"])
     cpu_usage.set(data["cpu_usage"])
     mem_usage.set(data["mem_usage"])
     disk_usage.set(data["disk_usage"])
     uptime_metric.set(data["uptime"])
-    push_to_gateway(PUSHGATEWAY_URL, job='raspi_maintenance', registry=registry)
+    push_to_gateway(
+        PUSHGATEWAY_URL,
+        job='raspi_maintenance',
+        grouping_key={"instance": NODE_NAME},
+        registry=registry,
+    )
 INTERVAL=60
 if __name__ == "__main__":
     while True:

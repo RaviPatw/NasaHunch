@@ -2,7 +2,7 @@
 import subprocess
 import time
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 
 LOG_FILE = "/var/log/auto_maintain.log"
 REBOOT_ON_KERNEL_UPDATE = True
@@ -10,7 +10,7 @@ BACKUP_FILE = "/var/backups/etc_backup.tar.gz"
 
 
 def log(message):
-    timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     entry = f"{timestamp} {message}"
     print(entry)
     with open(LOG_FILE, "a") as f:

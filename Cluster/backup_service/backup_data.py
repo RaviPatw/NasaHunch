@@ -5,7 +5,8 @@ import time
 from datetime import datetime, UTC
 
 SOURCE_DIRS = ["/home/pi/projects", "/etc", "/var/www"]
-BACKUP_DIR = "/mnt/usb/backups"
+# Matches the Docker volume mount in Cluster/docker-stack.yml
+BACKUP_DIR = "/mnt/backup"
 RETENTION_DAYS = 14
 
 def ensure_dir(path):
@@ -14,15 +15,21 @@ def ensure_dir(path):
 def create_backup():
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(BACKUP_DIR, f"backup_{timestamp}.tar.gz")
-    cmd = ["tar", "-czf", backup_file] + SOURCE_DIRS
-    subprocess.run(cmd)
+    existing_sources = [path for path in SOURCE_DIRS if os.path.exists(path)]
+    if not existing_sources:
+        print("No source directories found; skipping backup.")
+        return
+    cmd = ["tar", "-czf", backup_file] + existing_sources
+    subprocess.run(cmd, check=True)
     print(f"Backup saved to {backup_file}")
 
 def cleanup_old_backups():
     cutoff = time.time() - RETENTION_DAYS * 86400
+    if not os.path.isdir(BACKUP_DIR):
+        return
     for file in os.listdir(BACKUP_DIR):
         path = os.path.join(BACKUP_DIR, file)
-        if os.path.getmtime(path) < cutoff:
+        if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
             os.remove(path)
             print(f"Removed old backup: {path}")
 

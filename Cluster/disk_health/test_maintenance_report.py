@@ -13,7 +13,7 @@ class TestMaintenanceReport(unittest.TestCase):
         temp = maintenance_report.get_cpu_temp()
         self.assertEqual(temp, 48.0)
 
-    @patch("psutil.sensors_temperatures")
+    @patch("psutil.sensors_temperatures", create=True)
     @patch("subprocess.check_output", side_effect=Exception("vcgencmd not found"))
     def test_get_cpu_temp_fallback(self, mock_subproc, mock_sensors):
         mock_sensors.return_value = {"cpu_thermal": [MagicMock(current=55.5)]}

@@ -13,21 +13,26 @@ class TestBackupData(unittest.TestCase):
         mock_makedirs.assert_called_once_with("/test/path", exist_ok=True)
 
     @patch("subprocess.run")
+    @patch("os.path.exists", return_value=True)
     @patch("backup_data.datetime")
-    def test_create_backup(self, mock_datetime, mock_run):
+    def test_create_backup(self, mock_datetime, mock_exists, mock_run):
         mock_datetime.now.return_value.strftime.return_value = "20250101_120000"
 
         backup_data.create_backup()
 
-        expected_backup_path = "/mnt/usb/backups/backup_20250101_120000.tar.gz"
+        expected_backup_path = os.path.join(backup_data.BACKUP_DIR, "backup_20250101_120000.tar.gz")
         expected_cmd = ["tar", "-czf", expected_backup_path] + backup_data.SOURCE_DIRS
 
-        mock_run.assert_called_once_with(expected_cmd)
+        mock_run.assert_called_once_with(expected_cmd, check=True)
 
     @patch("os.remove")
+    @patch("os.path.isfile", return_value=True)
+    @patch("os.path.isdir", return_value=True)
     @patch("os.path.getmtime")
     @patch("os.listdir")
-    def test_cleanup_old_backups(self, mock_listdir, mock_getmtime, mock_remove):
+    def test_cleanup_old_backups(
+        self, mock_listdir, mock_getmtime, mock_isdir, mock_isfile, mock_remove
+    ):
         mock_listdir.return_value = ["old.tar.gz", "new.tar.gz"]
 
         old_time = time.time() - (20 * 86400)
@@ -37,7 +42,7 @@ class TestBackupData(unittest.TestCase):
 
         backup_data.cleanup_old_backups()
 
-        mock_remove.assert_called_once_with("/mnt/usb/backups/old.tar.gz")
+        mock_remove.assert_called_once_with(os.path.join(backup_data.BACKUP_DIR, "old.tar.gz"))
 
     @patch("backup_data.cleanup_old_backups")
     @patch("backup_data.create_backup")
