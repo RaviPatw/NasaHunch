@@ -11,9 +11,10 @@ The deployer supports:
 
 Presentation Hardware Layout (recommended)
 1. `2 x Raspberry Pi 5 (8GB)` -> `role=ai`
-2. `3 x Raspberry Pi 5 (4GB)` -> `role=general`
+2. `2 x Raspberry Pi 5 (4GB)` -> `role=general`
 3. Use one 8GB Pi as the Swarm manager.
-4. All Pis connect to the same Ethernet switch.
+4. Total nodes: `4`
+5. All Pis connect to the same Ethernet switch.
 
 Static IP Plan (recommended for presentation)
 Use a single LAN subnet for the switch. Example:
@@ -27,7 +28,6 @@ Assign these static IPs
 2. `pi-ai-2` (8GB, worker): `192.168.50.11`
 3. `pi-gen-1` (4GB, worker): `192.168.50.21`
 4. `pi-gen-2` (4GB, worker): `192.168.50.22`
-5. `pi-gen-3` (4GB, worker): `192.168.50.23`
 
 Set static IP on each Pi (Raspberry Pi OS, `dhcpcd`)
 1. Find interface name:
@@ -61,8 +61,8 @@ Where code/images need to exist
 
 Requirements / Packages
 
-Install on all 5 Pis (required)
-1. Raspberry Pi OS 64-bit (Bookworm recommended).
+Install on all 4 Pis (required)
+1. Raspberry Pi OS 64-bit (Bookworm recommended, ARM64 / aarch64).
 2. Network access on same LAN (all Pis).
 3. Docker Engine:
    `curl -fsSL https://get.docker.com | sh`
@@ -87,7 +87,6 @@ Recommended hostnames (helps your demo)
 2. `pi-ai-2` (8GB, worker)
 3. `pi-gen-1` (4GB, worker)
 4. `pi-gen-2` (4GB, worker)
-5. `pi-gen-3` (4GB, worker)
 
 Optional hostname command (run on each Pi, reboot after):
 1. `sudo hostnamectl set-hostname <new-name>`
@@ -102,7 +101,7 @@ On manager Pi (`pi-ai-1`)
    `docker swarm join-token worker`
 3. Copy the printed join command.
 
-On each worker Pi (`pi-ai-2`, `pi-gen-1`, `pi-gen-2`, `pi-gen-3`)
+On each worker Pi (`pi-ai-2`, `pi-gen-1`, `pi-gen-2`)
 1. Run the join command printed by the manager:
    `docker swarm join --token <token> 192.168.50.10:2377`
 
@@ -117,7 +116,6 @@ Node Labels (required for hosting demo)
 2. Label general nodes (4GB Pis):
    `docker node update --label-add role=general pi-gen-1`
    `docker node update --label-add role=general pi-gen-2`
-   `docker node update --label-add role=general pi-gen-3`
 3. Verify labels:
    `docker node inspect pi-ai-1 --format '{{json .Spec.Labels}}'`
    `docker node inspect pi-gen-1 --format '{{json .Spec.Labels}}'`
@@ -140,13 +138,13 @@ Run on all Pis:
 
 Build Custom Monitoring Stack Images (manager Pi)
 Run from `~/NasaHunch/Cluster`:
-1. `docker build -t cluster_sensor_exporter ./simulated_nodes`
-2. `docker build -t cluster_backup_service ./backup_service`
-3. `docker build -t cluster_disk_health ./disk_health`
-4. `docker build -t cluster_manager ./cluster_manager`
-5. `docker build -t cluster_test_stress ./test_stress`
-6. `docker build -t cluster_log_aggregator ./log_aggregator`
-7. `docker build -t cluster_backend ./backend`
+1. `docker build -t cluster_backup_service ./backup_service`
+2. `docker build -t cluster_disk_health ./disk_health`
+3. `docker build -t cluster_manager ./cluster_manager`
+4. `docker build -t cluster_test_stress ./test_stress`
+5. `docker build -t cluster_log_aggregator ./log_aggregator`
+6. `docker build -t cluster_backend ./backend`
+7. `docker build -t cluster_pi_temp_exporter ./pi_temp_exporter`
 
 Important note for custom images
 1. If Swarm schedules a custom `cluster_*` image to a worker, that worker must be able to pull or already have that image.
@@ -154,7 +152,21 @@ Important note for custom images
    `A.` Keep services on manager if possible
    `B.` Use a local registry
    `C.` Build/load custom images on workers ahead of time
-3. The hosting demo examples `test-web` and `test-ai-ollama` use public images and are safer.
+3. `pi_temp_exporter` is a custom image and runs in `global` mode, so every Pi must have `cluster_pi_temp_exporter:latest` (or be able to pull it from your registry).
+4. The hosting demo examples `test-web` and `test-ai-ollama` use public images and are safer.
+5. `cluster_backup_service`, `cluster_disk_health`, `cluster_manager`, `cluster_test_stress`, `cluster_log_aggregator`, and `cluster_backend` are also custom images; if scheduled off-manager, they must be preloaded on workers or pulled from a registry.
+
+If not using a registry: build/load `cluster_pi_temp_exporter` on all Pis (required for real temp on all Pis)
+1. On manager Pi, build it:
+   `cd ~/NasaHunch/Cluster && docker build -t cluster_pi_temp_exporter ./pi_temp_exporter`
+2. Save image on manager:
+   `docker save cluster_pi_temp_exporter:latest -o /tmp/cluster_pi_temp_exporter.tar`
+3. Copy to each worker (example):
+   `scp /tmp/cluster_pi_temp_exporter.tar pi@192.168.50.11:/tmp/`
+   `scp /tmp/cluster_pi_temp_exporter.tar pi@192.168.50.21:/tmp/`
+   `scp /tmp/cluster_pi_temp_exporter.tar pi@192.168.50.22:/tmp/`
+4. Load on each worker:
+   `docker load -i /tmp/cluster_pi_temp_exporter.tar`
 
 Deploy Monitoring Stack
 1. From `~/NasaHunch/Cluster`:
@@ -168,12 +180,11 @@ Run on manager Pi:
 1. `docker node ls`
 2. `docker stack services cluster`
 3. `docker service ps cluster_node_exporter`
-4. `docker service ps cluster_sensor_exporter`
+4. `docker service ps cluster_pi_temp_exporter`
 5. `docker service ps cluster_prometheus`
-6. `docker service logs cluster_sensor_exporter --tail 20`
-7. `curl http://localhost:9200/metrics | head`
-8. `curl http://localhost:9090/-/healthy`
-9. Open `http://192.168.50.10:9090/targets` and confirm multiple `node_exporter` targets are up
+6. `docker service logs cluster_pi_temp_exporter --tail 20`
+7. `curl http://localhost:9090/-/healthy`
+8. Open `http://192.168.50.10:9090/targets` and confirm multiple `node_exporter` and `pi_temp_exporter` targets are up
 
 Presentation Day "Quick Start" (copy/paste sequence)
 1. `cd ~/NasaHunch/Cluster`
@@ -181,7 +192,7 @@ Presentation Day "Quick Start" (copy/paste sequence)
 3. `docker stack services cluster`
 4. `docker service ps cluster_node_exporter`
 5. `docker service ps cluster_prometheus`
-6. `docker service ps cluster_sensor_exporter`
+6. `docker service ps cluster_pi_temp_exporter`
 7. `cd ~/NasaHunch`
 8. `python3 deployer/deployer.py --queue-dir queue --dry-run`
 
@@ -194,15 +205,16 @@ Presentation Runbook (fast flow)
    `cd ~/NasaHunch/Cluster`
    `docker stack services cluster`
    `docker service ps cluster_node_exporter`
-   `docker service logs cluster_sensor_exporter --tail 20`
+   `docker service ps cluster_pi_temp_exporter`
+   `docker service logs cluster_pi_temp_exporter --tail 20`
    `docker service logs cluster_prometheus --tail 20`
 3. Show live metrics in browser (manager Pi is `192.168.50.10`):
-   `http://192.168.50.10:9200/metrics`
    `http://192.168.50.10:9090/targets`
-   `http://192.168.50.10:9090/graph` (query `sensor_temperature_c`, `sensor_humidity_pct`)
+   `http://192.168.50.10:9090/graph` (query `pi_cpu_temperature_c`)
    `http://192.168.50.10:8000/register` (API route exists, expects POST)
    `http://192.168.50.10:8000/report_metrics` (API route exists, expects POST)
    `http://192.168.50.10:3000` (Grafana)
+   Note: `pi_cpu_temperature_c` is real per-Pi temperature from all 4 Pis.
 4. Show hosting functionality (safe first):
    `cd ~/NasaHunch`
    `python3 deployer/deployer.py --queue-dir queue --dry-run`
@@ -225,14 +237,14 @@ Useful Logs / Debug Commands During Presentation
 1. `docker stack services cluster`
 2. `docker service ls`
 3. `docker service ps cluster_node_exporter`
-3. `docker service ps cluster_sensor_exporter`
-4. `docker service ps cluster_prometheus`
-5. `docker service logs cluster_sensor_exporter --tail 50`
-6. `docker service logs cluster_prometheus --tail 50`
-7. `docker service logs cluster_backend --tail 50`
-8. `docker service logs test-web --tail 50`
-9. `docker service logs test-ai-ollama --tail 50`
-10. `docker service logs cluster_node_exporter --tail 20`
+4. `docker service ps cluster_pi_temp_exporter`
+5. `docker service ps cluster_prometheus`
+6. `docker service logs cluster_pi_temp_exporter --tail 50`
+7. `docker service logs cluster_prometheus --tail 50`
+8. `docker service logs cluster_backend --tail 50`
+9. `docker service logs test-web --tail 50`
+10. `docker service logs test-ai-ollama --tail 50`
+11. `docker service logs cluster_node_exporter --tail 20`
 
 Prometheus Queries (real per-Pi metrics)
 1. CPU usage by Pi:
@@ -241,6 +253,10 @@ Prometheus Queries (real per-Pi metrics)
    `(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100`
 3. Disk usage percent by Pi:
    `100 * (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}))`
+4. Real Pi CPU temperature by Pi:
+   `pi_cpu_temperature_c`
+5. Temperature exporter availability (should show 4 series for 4 Pis):
+   `pi_cpu_temperature_available`
 
 Queue examples
 1. `queue/sample_web.yaml` (web app image)
@@ -264,6 +280,14 @@ If a service fails live (fast recovery)
 3. Remove only the failing hosted service and continue:
    `docker service rm <service-name>`
 4. Continue demo with monitoring + successful hosted services.
+
+Grafana setup (first time)
+1. Open `http://192.168.50.10:3000`
+2. Login (default is often `admin` / `admin`, then set a new password)
+3. Add Prometheus datasource:
+   URL: `http://prometheus:9090`
+4. Create a panel and use Prometheus queries above.
+5. For real per-Pi temperature, use `pi_cpu_temperature_c` and set legend to `{{instance}}`.
 
 Cleanup After Demo
 1. `docker stack rm cluster`

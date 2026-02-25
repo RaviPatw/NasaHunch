@@ -34,20 +34,6 @@ services:
       replicas: 1
       restart_policy:
         condition: any
-    depends_on:
-      - sensor_exporter
-
-  # Sensor Exporter
-  sensor_exporter:
-    image: cluster_sensor_exporter:latest
-    networks:
-      - cluster_net
-    ports:
-      - "9200:9200"
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
 
   # Per-node real system metrics (CPU/RAM/disk/network) on every Pi
   node_exporter:
@@ -68,6 +54,18 @@ services:
       restart_policy:
         condition: any
 
+  # Per-node Raspberry Pi CPU temperature exporter on every Pi
+  pi_temp_exporter:
+    image: cluster_pi_temp_exporter:latest
+    networks:
+      - cluster_net
+    volumes:
+      - /sys:/host_sys:ro
+    deploy:
+      mode: global
+      restart_policy:
+        condition: any
+
   # Prometheus
   prometheus:
     image: prom/prometheus:latest
@@ -82,8 +80,8 @@ services:
       restart_policy:
         condition: any
     depends_on:
-      - sensor_exporter
       - backend
+      - pi_temp_exporter
 
   # Grafana
   grafana:

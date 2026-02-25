@@ -6,9 +6,9 @@ scrape_configs:
     static_configs:
       - targets: ['tasks.node_exporter:9100']
 
-  - job_name: 'sensor_exporter'
+  - job_name: 'pi_temp_exporter'
     static_configs:
-      - targets: ['sensor_exporter:9200']
+      - targets: ['tasks.pi_temp_exporter:9300']
   - job_name: 'pushgateway'
     honor_labels: true
     static_configs:
