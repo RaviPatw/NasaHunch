@@ -292,3 +292,7 @@ Grafana setup (first time)
 Cleanup After Demo
 1. `docker stack rm cluster`
 2. `docker service rm test-web test-ai-ollama test-git-app`
+
+
+
+SWMTKN-1-4014ebgtJ3ahodd1m2oyInfgyalv7hsrn4zaha87sfwou7x96b-6xwxK9w51w6bpoh6mpr9gcvcr
