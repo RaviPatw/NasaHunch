@@ -1,3 +1,6 @@
+docker swarm join --token SWMTKN-1-4st9jhzg5z6f7sx0nda8bwjvo2otq78ydstln0umat15m2e162-96a9pv405lt78kzbeg3tlbqic 172.20.10.8:2377
+
+
 NASA HUNCH Raspberry Pi Server Farm
 
 This project has two main parts:
